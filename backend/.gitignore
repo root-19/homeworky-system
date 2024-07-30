@@ -1,0 +1,10 @@
+# Node.js environment file
+.env
+
+# Environment-specific files (if any)
+.env.local
+.env.development
+.env.production
+
+# Ignore node_modules (commonly included in .gitignore)
+node_modules/
