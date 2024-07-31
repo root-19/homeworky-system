@@ -1,14 +1,16 @@
+// index.js (or your main file)
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const mysql = require('mysql2');
-const cron = require('node-cron');
-const nodemailer = require('nodemailer');
-const dotenv = require('dotenv');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
+const dotenv = require('dotenv');
+
+// Import the cron job
+require('./cronjob');
 
 dotenv.config();
 
@@ -43,6 +45,20 @@ db.connect((err) => {
   console.log('Connected to the database');
 });
 
+// Middleware to authenticate JWT tokens
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (token == null) return res.sendStatus(401);
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) return res.sendStatus(403);
+    req.user = user;
+    next();
+  });
+};
+
 // User registration
 app.post('/register', (req, res) => {
   const { username, password, email } = req.body;
@@ -65,7 +81,7 @@ app.post('/register', (req, res) => {
 app.post('/login', (req, res) => {
   const { username, password } = req.body;
 
-  const sql = 'SELECT id, password FROM users WHERE username = ?';
+  const sql = 'SELECT id,username, password FROM users WHERE username = ?';
   db.query(sql, [username], (err, results) => {
     if (err) {
       console.error('Database error:', err);
@@ -78,159 +94,67 @@ app.post('/login', (req, res) => {
 
     const userId = results[0].id;
     const token = jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    res.status(200).json({ user_id: userId, token });
+    res.status(200).json({ user_id: userId, username: results[0].username, token });
   });
 });
 
-// Middleware to authenticate JWT tokens
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-  if (token == null) return res.sendStatus(401);
-
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-    if (err) return res.sendStatus(403);
-    req.user = user;
-    next();
-  });
-};
-
-// Add assignment
-app.post('/assignments', authenticateToken, (req, res) => {
-  const { title, description, due_date, user_id } = req.body;
-
-  if (!title || !description || !due_date || !user_id) {
-    console.log('Missing required fields:', req.body); // Debug log
-    return res.status(400).json({ error: 'Missing required fields' });
-  }
-
-  // Check if user exists
-  db.query('SELECT id FROM users WHERE id = ?', [user_id], (err, results) => {
-    if (err) {
-      console.error('Database error:', err);
-      return res.status(500).json({ error: 'Database error' });
-    }
-    console.log('User ID check results:', results); // Debug log
-    if (results.length === 0) {
-      return res.status(400).json({ error: 'Invalid user ID' });
-    }
-
-    const sql = 'INSERT INTO assignments (title, description, due_date, user_id) VALUES (?, ?, ?, ?)';
-    db.query(sql, [title, description, due_date, user_id], (err, results) => {
-      if (err) {
-        console.error('Database error:', err);
-        return res.status(500).json({ error: 'Failed to add assignment' });
-      }
-      res.status(201).json({ message: 'Assignment added', id: results.insertId });
-    });
-  });
-});
-
-// Get assignments
-app.get('/assignments', (req, res) => {
-  const { user_id } = req.query;
-  if (!user_id) {
-    return res.status(400).json({ error: 'User ID is required' });
-  }
+// Fetch assignments
+app.get('/assignments', authenticateToken, (req, res) => {
+  const userId = req.query.user_id;
 
   const sql = 'SELECT * FROM assignments WHERE user_id = ?';
-  db.query(sql, [user_id], (err, results) => {
+  db.query(sql, [userId], (err, results) => {
     if (err) {
       console.error('Database error:', err);
-      return res.status(500).json({ error: 'Database error' });
+      return res.status(500).json({ error: 'Failed to fetch assignments' });
     }
     res.status(200).json(results);
   });
 });
 
-// Scheduler for sending email reminders
-cron.schedule('0 * * * *', () => { // Every hour
-  const now = new Date();
-  const eightHoursLater = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+// Add assignment
+app.post('/assignments', authenticateToken, (req, res) => {
+  const { title, description, due_date, completed, user_id } = req.body;
 
-  console.log('Cron job triggered:', now, eightHoursLater);
-
-  const sql = 'SELECT * FROM assignments WHERE due_date BETWEEN ? AND ?';
-  db.query(sql, [now, eightHoursLater], (err, assignments) => {
+  const sql = 'INSERT INTO assignments (title, description, due_date, completed, user_id) VALUES (?, ?, ?, ?, ?)';
+  db.query(sql, [title, description, due_date, completed, user_id], (err, results) => {
     if (err) {
-      console.error('Error fetching assignments:', err);
-      return;
+      console.error('Database error:', err);
+      return res.status(500).json({ error: 'Failed to add assignment' });
     }
-
-    console.log('Assignments due soon:', assignments);
-
-    assignments.forEach(assignment => {
-      const emailSql = 'SELECT email FROM users WHERE id = ?';
-      db.query(emailSql, [assignment.user_id], (err, users) => {
-        if (err) {
-          console.error('Error fetching user email:', err);
-          return;
-        }
-
-        if (users.length === 0) {
-          console.error('No user found for id:', assignment.user_id);
-          return;
-        }
-
-        const userEmail = users[0].email;
-        const subject = 'Assignment Due Soon!';
-        const text = `Your assignment "${assignment.title}" is due in less than 8 hours. Please complete it soon.`;
-
-        console.log('Sending reminder email to:', userEmail);
-
-        sendReminderEmail(userEmail, subject, text);
-      });
-    });
+    res.status(201).json({ id: results.insertId, title, description, due_date, completed, user_id });
   });
 });
 
-// Email transporter setup
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
+// Update assignment (toggle complete status)
+app.put('/assignments/:id', authenticateToken, (req, res) => {
+  const { id } = req.params;
+  const { completed } = req.body;
 
-// Function to send reminder email
-const sendReminderEmail = (to, subject, text) => {
-  const mailOptions = {
-    from: process.env.EMAIL_USER,
-    to,
-    subject,
-    text
-  };
-
-  transporter.sendMail(mailOptions, (err, info) => {
+  const sql = 'UPDATE assignments SET completed = ? WHERE id = ?';
+  db.query(sql, [completed, id], (err) => {
     if (err) {
-      console.error('Error sending email:', err);
-    } else {
-      console.log('Email sent:', info.response);
+      console.error('Database error:', err);
+      return res.status(500).json({ error: 'Failed to update assignment' });
     }
+    res.status(200).json({ id, completed });
   });
-};
+});
 
 // Delete assignment
 app.delete('/assignments/:id', authenticateToken, (req, res) => {
-  const assignmentId = req.params.id;
+  const { id } = req.params;
 
   const sql = 'DELETE FROM assignments WHERE id = ?';
-  db.query(sql, [assignmentId], (err, results) => {
+  db.query(sql, [id], (err) => {
     if (err) {
       console.error('Database error:', err);
       return res.status(500).json({ error: 'Failed to delete assignment' });
     }
-
-    if (results.affectedRows === 0) {
-      return res.status(404).json({ error: 'Assignment not found' });
-    }
-
-    res.status(200).json({ message: 'Assignment deleted' });
+    res.status(204).send();
   });
 });
 
-// Start server
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`);
 });
