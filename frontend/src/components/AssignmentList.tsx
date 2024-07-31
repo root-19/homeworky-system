@@ -1,47 +1,35 @@
 import React from 'react';
 import { Assignment } from '../types';
 
-interface Props {
+interface AssignmentListProps {
   assignments: Assignment[];
   toggleComplete: (index: number) => void;
   deleteAssignment: (index: number) => void;
 }
 
-const AssignmentList: React.FC<Props> = ({ assignments, toggleComplete, deleteAssignment }) => {
-  const handleDelete = async (index: number) => {
-    try {
-      await deleteAssignment(index);
-    } catch (error: any) {
-      console.error('Error deleting assignment:', error);
-      alert('Failed to delete assignment. Please try again.');
-    }
-  };
-
+const AssignmentList: React.FC<AssignmentListProps> = ({ assignments, toggleComplete, deleteAssignment }) => {
   return (
-    <div className="max-w-md mx-auto mt-4">
-      <h2 className="text-2xl mb-4">Assignments</h2>
-      {assignments.length === 0 && <p>No assignments found.</p>}
-      {assignments.map((assignment, index) => (
-        <div key={index} className="p-4 mb-4 border shadow-lg">
-          <h3 className="text-xl">{assignment.title}</h3>
-          <p>{assignment.description}</p>
-          <p>Due: {assignment.dueDate}</p>
-          <div className="flex justify-between mt-4">
-            <button
-              onClick={() => toggleComplete(index)}
-              className={`p-2 ${assignment.completed ? 'bg-green-500' : 'bg-gray-500'} text-white`}
-            >
-              {assignment.completed ? 'Completed' : 'Mark as Complete'}
-            </button>
-            <button
-              onClick={() => handleDelete(index)}
-              className="p-2 bg-red-500 text-white"
-            >
-              Delete
-            </button>
-          </div>
-        </div>
-      ))}
+    <div>
+      <h2 className="text-xl mb-4">Assignments</h2>
+      <ul>
+        {assignments.map((assignment, index) => (
+          <li key={assignment.id} className="mb-2 p-2 border rounded flex justify-between items-center">
+            <div>
+              <h3 className={`text-lg ${assignment.completed ? 'line-through' : ''}`}>{assignment.title}</h3>
+              <p className="text-sm">{assignment.description}</p>
+              <p className="text-xs text-gray-500">Due: {assignment.due_date}</p>
+            </div>
+            <div>
+              <button onClick={() => toggleComplete(index)} className="mr-2 p-1 bg-blue-500 text-white rounded">
+                {assignment.completed ? 'Mark Incomplete' : 'Mark Complete'}
+              </button>
+              <button onClick={() => deleteAssignment(index)} className="p-1 bg-red-500 text-white rounded">
+                Delete
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 };

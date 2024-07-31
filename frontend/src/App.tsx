@@ -21,15 +21,16 @@ const App: React.FC = () => {
       setCurrentUser(storedUser);
       setToken(storedToken);
       setIsAuthenticated(true);
-      fetchAssignments(storedToken);
+      fetchAssignments(storedUser, storedToken);
+      // fecthUsername(storedUser,storedToken);
     }
   }, []);
 
-  const fetchAssignments = async (authToken: string) => {
+  const fetchAssignments = async (user: string, authToken: string) => {
     try {
       const response = await axios.get('http://localhost:3000/assignments', {
         headers: { Authorization: `Bearer ${authToken}` },
-        params: { user_id: currentUser } // Add user_id as query parameter
+        params: { user_id: user }
       });
       setAssignments(response.data);
       setError(null);
@@ -39,13 +40,17 @@ const App: React.FC = () => {
     }
   };
 
+ 
   const addAssignment = async (assignment: Assignment) => {
-    if (token) {
+    if (token && currentUser) {
       try {
-        await axios.post('http://localhost:3000/assignments', assignment, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        await fetchAssignments(token); // Refresh assignments list
+        console.log('Adding assignment:', assignment, 'with user_id:', currentUser); // Debug log
+        const response = await axios.post('http://localhost:3000/assignments', 
+          { ...assignment, user_id: currentUser }, 
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        console.log('Add assignment response:', response.data); // Debug log
+        await fetchAssignments(currentUser, token); // Refresh assignments list
         setError(null);
       } catch (error: any) {
         console.error('Error adding assignment:', error.response ? error.response.data : error.message);
@@ -60,19 +65,24 @@ const App: React.FC = () => {
     setAssignments(newAssignments);
   };
 
-  const deleteAssignment = async (index: number) => {
-    const assignmentToDelete = assignments[index];
-    try {
-      await axios.delete(`http://localhost:3000/assignments/${assignmentToDelete.id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setAssignments(assignments.filter((_, i) => i !== index));
-      setError(null);
-    } catch (error: any) {
-      console.error('Error deleting assignment:', error.response ? error.response.data : error.message);
-      setError('Failed to delete assignment. Please try again.');
-    }
-  };
+const deleteAssignment = async (index: number) => {
+  const assignmentToDelete = assignments[index];
+  try {
+    console.log('Deleting assignment with ID:', assignmentToDelete.id);
+    console.log('Authorization Token:', token);
+    
+    await axios.delete(`http://localhost:3000/assignments/${assignmentToDelete.id}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    
+    setAssignments(assignments.filter((_, i) => i !== index));
+    setError(null);
+  } catch (error: any) {
+    console.error('Error deleting assignment:', error.response ? error.response.data : error.message, error);
+    setError('Failed to delete assignment. Please try again.');
+  }
+};
+
 
   const handleRegister = async (username: string, password: string, email: string) => {
     try {
@@ -81,10 +91,10 @@ const App: React.FC = () => {
         password,
         email
       });
-      setCurrentUser(username);
+      setCurrentUser(response.data.user_id.toString());
       setToken(response.data.token);
       setIsAuthenticated(true);
-      localStorage.setItem('currentUser', username);
+      localStorage.setItem('currentUser', response.data.user_id.toString());
       localStorage.setItem('token', response.data.token);
       setError(null);
     } catch (error: any) {
@@ -99,12 +109,12 @@ const App: React.FC = () => {
         username,
         password
       });
-      setCurrentUser(username);
+      setCurrentUser(response.data.user_id.toString());
       setToken(response.data.token);
       setIsAuthenticated(true);
-      localStorage.setItem('currentUser', username);
+      localStorage.setItem('currentUser', response.data.user_id.toString());
       localStorage.setItem('token', response.data.token);
-      await fetchAssignments(response.data.token); // Fetch assignments on login
+      await fetchAssignments(response.data.user_id.toString(), response.data.token); 
       setError(null);
     } catch (error: any) {
       console.error('Error logging in:', error.response ? error.response.data : error.message);
@@ -122,7 +132,7 @@ const App: React.FC = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-2xl mb-4">Welcome, {currentUser}</h1>
+      
       {error && <p className="text-red-500 mb-4">{error}</p>}
       {!isAuthenticated ? (
         <div className="flex justify-center">
@@ -136,8 +146,9 @@ const App: React.FC = () => {
         </div>
       ) : (
         <div>
+          <h1 className="text-2xl mb-4">Welcome, {currentUser}</h1>
           <button onClick={handleLogout} className="mb-4 p-2 bg-red-500 text-white rounded">Logout</button>
-          <AddAssignment addAssignment={addAssignment} userId={currentUser!} />
+          <AddAssignment addAssignment={addAssignment} />
           <AssignmentList
             assignments={assignments}
             toggleComplete={toggleComplete}

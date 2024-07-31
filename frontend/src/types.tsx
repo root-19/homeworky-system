@@ -1,6 +1,7 @@
 export interface Assigments{
+    id?:number;
     title:string;
     description:string;
-    dueDate:string;
+    due_date:string;
     completed:boolean;
 }

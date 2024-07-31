@@ -1,11 +1,14 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const mysql = require('mysql2');
 const cron = require('node-cron');
 const nodemailer = require('nodemailer');
 const dotenv = require('dotenv');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 
 dotenv.config();
 
@@ -15,6 +18,14 @@ const port = 3000;
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
+app.use(helmet()); // Security headers
+
+// Rate Limiting
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100 // Limit each IP to 100 requests per windowMs
+});
+app.use(apiLimiter);
 
 // Database connection
 const db = mysql.createConnection({
@@ -32,67 +43,46 @@ db.connect((err) => {
   console.log('Connected to the database');
 });
 
-// Email transporter setup
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
-
-// Function to send reminder email
-const sendReminderEmail = (to, subject, text) => {
-  const mailOptions = {
-    from: process.env.EMAIL_USER,
-    to,
-    subject,
-    text
-  };
-
-  transporter.sendMail(mailOptions, (err, info) => {
-    if (err) {
-      console.error('Error sending email:', err);
-    } else {
-      console.log('Email sent:', info.response);
-    }
-  });
-};
-
 // User registration
 app.post('/register', (req, res) => {
   const { username, password, email } = req.body;
-
-  if (!username || !password || !email) {
-    return res.status(400).json({ error: 'Missing required fields' });
-  }
+  const hashedPassword = bcrypt.hashSync(password, 10);
 
   const sql = 'INSERT INTO users (username, password, email) VALUES (?, ?, ?)';
-  db.query(sql, [username, password, email], (err, results) => {
+  db.query(sql, [username, hashedPassword, email], (err, results) => {
     if (err) {
       console.error('Database error:', err);
-      return res.status(500).json({ error: 'Database error' });
+      return res.status(500).json({ error: 'Failed to register' });
     }
-    res.status(201).json({ message: 'User registered' });
+
+    const userId = results.insertId;
+    const token = jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    res.status(201).json({ user_id: userId, token });
   });
 });
 
 // User login
 app.post('/login', (req, res) => {
   const { username, password } = req.body;
-  const sql = 'SELECT * FROM users WHERE username = ?';
+
+  const sql = 'SELECT id, password FROM users WHERE username = ?';
   db.query(sql, [username], (err, results) => {
-    if (err) return res.status(500).json({ error: 'Database error' });
-    if (results.length === 0) return res.status(404).json({ error: 'User not found' });
+    if (err) {
+      console.error('Database error:', err);
+      return res.status(500).json({ error: 'Failed to login' });
+    }
 
-    const user = results[0];
-    if (password !== user.password) return res.status(401).json({ error: 'Invalid password' });
+    if (results.length === 0 || !bcrypt.compareSync(password, results[0].password)) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
 
-    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '24h' });
-    res.status(200).json({ token });
+    const userId = results[0].id;
+    const token = jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    res.status(200).json({ user_id: userId, token });
   });
 });
 
+// Middleware to authenticate JWT tokens
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -110,6 +100,7 @@ app.post('/assignments', authenticateToken, (req, res) => {
   const { title, description, due_date, user_id } = req.body;
 
   if (!title || !description || !due_date || !user_id) {
+    console.log('Missing required fields:', req.body); // Debug log
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
@@ -119,6 +110,7 @@ app.post('/assignments', authenticateToken, (req, res) => {
       console.error('Database error:', err);
       return res.status(500).json({ error: 'Database error' });
     }
+    console.log('User ID check results:', results); // Debug log
     if (results.length === 0) {
       return res.status(400).json({ error: 'Invalid user ID' });
     }
@@ -189,6 +181,52 @@ cron.schedule('0 * * * *', () => { // Every hour
         sendReminderEmail(userEmail, subject, text);
       });
     });
+  });
+});
+
+// Email transporter setup
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
+
+// Function to send reminder email
+const sendReminderEmail = (to, subject, text) => {
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to,
+    subject,
+    text
+  };
+
+  transporter.sendMail(mailOptions, (err, info) => {
+    if (err) {
+      console.error('Error sending email:', err);
+    } else {
+      console.log('Email sent:', info.response);
+    }
+  });
+};
+
+// Delete assignment
+app.delete('/assignments/:id', authenticateToken, (req, res) => {
+  const assignmentId = req.params.id;
+
+  const sql = 'DELETE FROM assignments WHERE id = ?';
+  db.query(sql, [assignmentId], (err, results) => {
+    if (err) {
+      console.error('Database error:', err);
+      return res.status(500).json({ error: 'Failed to delete assignment' });
+    }
+
+    if (results.affectedRows === 0) {
+      return res.status(404).json({ error: 'Assignment not found' });
+    }
+
+    res.status(200).json({ message: 'Assignment deleted' });
   });
 });
 
