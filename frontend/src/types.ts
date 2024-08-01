@@ -1,11 +1,9 @@
-// types.ts
-export interface Assignments {
-  id?: number;
+export type Assignment = {
   title: string;
   description: string;
   due_date: string;
   completed: boolean;
-}
+};
 
 export interface User {
   id: number;
@@ -16,3 +14,4 @@ export interface User {
 export interface ChatProps {
   user: User | null; // Allowing user to be null initially
 }
+export type Assignments = Assignment[];
