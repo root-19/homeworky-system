@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom'; // Add useNavigate from react-router-dom
+import { useNavigate } from 'react-router-dom';
 import Register from './components/Register';
 import Login from './components/Login';
 import AddAssignment from './components/AddAssignment';
 import AssignmentList from './components/AssignmentList';
-
 import { Assignment } from './types';
+// import Chat from './Chat';
 
 const App: React.FC = () => {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -16,8 +16,9 @@ const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showLogin, setShowLogin] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isMenuOpen, setIsMenuOpen] = useState(false); // State for hamburger menu
-  const navigate = useNavigate(); // Add useNavigate hook
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const navigate = useNavigate();
+ 
 
   useEffect(() => {
     const storedUser = localStorage.getItem('currentUser');
@@ -139,12 +140,12 @@ const App: React.FC = () => {
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
 
   const handleChat = () => {
-    navigate('./components/Chat.tsx'); // Use relative path to navigate to the Chat component
+    navigate('/chat'); // Ensure this matches the route path in your router setup
   };
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-2xl">Assignment Tracker</h1>
+      {/* <h1 className="text-2xl">Assignment Tracker</h1> */}
       <header className="flex items-center justify-between mb-4">
         
         <button className="lg:hidden p-2" onClick={toggleMenu}>

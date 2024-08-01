@@ -15,7 +15,9 @@ const Login: React.FC<LoginProps> = ({ onLogin, switchToRegister }) => {
   };
 
   return (
-    <div>
+     <> 
+    
+    <div className=''>
       <h2 className="text-xl mb-4">Login</h2>
       <form onSubmit={handleSubmit}>
         <div className="mb-4">
@@ -48,6 +50,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, switchToRegister }) => {
         </div>
       </form>
     </div>
+    </>
   );
 };
 

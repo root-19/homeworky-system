@@ -1,4 +1,3 @@
-// index.js (or your main file)
 const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
@@ -8,6 +7,8 @@ const mysql = require('mysql2');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const dotenv = require('dotenv');
+const http = require('http'); 
+const WebSocket = require('ws');
 
 // Import the cron job
 require('./cronjob');
@@ -15,6 +16,9 @@ require('./cronjob');
 dotenv.config();
 
 const app = express();
+const server = http.createServer(app); // Create HTTP server with Express
+const wss = new WebSocket.Server({ server }); // Create WebSocket server using the same HTTP server
+
 const port = 3000;
 
 // Middleware
@@ -155,6 +159,37 @@ app.delete('/assignments/:id', authenticateToken, (req, res) => {
   });
 });
 
-app.listen(port, () => {
+
+
+// Fetch messages
+app.get('/messages', (req, res) => {
+  db.query('SELECT * FROM messages ORDER BY dateCreated DESC', (err, results) => {
+    if (err) {
+      console.error('Error fetching messages:', err);
+      res.status(500).json({ error: 'Database query error' });
+      return;
+    }
+    res.json(results);
+  });
+});
+
+// Post a message
+app.post('/messages', (req, res) => {
+  const { message } = req.body;
+  if (message) {
+    db.query('INSERT INTO messages (message) VALUES (?)', [message], (err) => {
+      if (err) {
+        console.error('Error inserting message:', err);
+        res.status(500).json({ error: 'Database insert error' });
+        return;
+      }
+      res.status(201).json({ message: 'Message added' });
+    });
+  } else {
+    res.status(400).json({ error: 'Message text is required' });
+  }
+});
+
+server.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`);
 });

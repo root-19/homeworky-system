@@ -22,7 +22,7 @@ db.connect((err) => {
   console.log('Connected to the database');
 });
 
-// Schedule a cron job to run every hour
+
 cron.schedule('0 * * * *', () => {
   const currentTime = new Date();
   const deadlineTime = new Date(currentTime.getTime() + 5 * 60 * 60 * 1000); // 5 hours from now
