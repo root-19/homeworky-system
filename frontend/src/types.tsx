@@ -1,4 +1,5 @@
 export type Assignment = {
+   id: string;
   title: string;
   description: string;
   due_date: string;

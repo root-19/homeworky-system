@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import { useNavigate } from 'react-router-dom';
 import Register from './components/Register';
 import Login from './components/Login';
 import AddAssignment from './components/AddAssignment';
 import AssignmentList from './components/AssignmentList';
 import { Assignment } from './types';
-// import Chat from './Chat';
 
 const App: React.FC = () => {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -18,7 +17,6 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const navigate = useNavigate();
- 
 
   useEffect(() => {
     const storedUser = localStorage.getItem('currentUser');
@@ -35,14 +33,15 @@ const App: React.FC = () => {
 
   const fetchAssignments = async (user: string, authToken: string) => {
     try {
-      const response = await axios.get('http://localhost:3000/assignments', {
+      const response = await axios.get<Assignment[]>('http://localhost:3000/assignments', {
         headers: { Authorization: `Bearer ${authToken}` },
         params: { user_id: user }
       });
       setAssignments(response.data);
       setError(null);
-    } catch (error: any) {
-      console.error('Error fetching assignments:', error.response ? error.response.data : error.message);
+    } catch (error) {
+      const axiosError = error as AxiosError;
+      console.error('Error fetching assignments:', axiosError.response ? axiosError.response.data : axiosError.message);
       setError('Failed to fetch assignments. Please try again.');
     }
   };
@@ -51,15 +50,16 @@ const App: React.FC = () => {
     if (token && currentUser) {
       try {
         console.log('Adding assignment:', assignment, 'with user_id:', currentUser);
-        const response = await axios.post('http://localhost:3000/assignments', 
+        const response = await axios.post<Assignment>('http://localhost:3000/assignments', 
           { ...assignment, user_id: currentUser }, 
           { headers: { Authorization: `Bearer ${token}` } }
         );
         console.log('Add assignment response:', response.data);
         await fetchAssignments(currentUser, token);
         setError(null);
-      } catch (error: any) {
-        console.error('Error adding assignment:', error.response ? error.response.data : error.message);
+      } catch (error) {
+        const axiosError = error as AxiosError;
+        console.error('Error adding assignment:', axiosError.response ? axiosError.response.data : axiosError.message);
         setError('Failed to add assignment. Please try again.');
       }
     }
@@ -81,15 +81,16 @@ const App: React.FC = () => {
       });
       setAssignments(assignments.filter((_, i) => i !== index));
       setError(null);
-    } catch (error: any) {
-      console.error('Error deleting assignment:', error.response ? error.response.data : error.message, error);
+    } catch (error) {
+      const axiosError = error as AxiosError;
+      console.error('Error deleting assignment:', axiosError.response ? axiosError.response.data : axiosError.message, error);
       setError('Failed to delete assignment. Please try again.');
     }
   };
 
   const handleRegister = async (username: string, password: string, email: string) => {
     try {
-      const response = await axios.post('http://localhost:3000/register', {
+      const response = await axios.post<{ user_id: string; username: string; token: string }>('http://localhost:3000/register', {
         username,
         password,
         email
@@ -102,15 +103,16 @@ const App: React.FC = () => {
       localStorage.setItem('username', response.data.username);
       localStorage.setItem('token', response.data.token);
       setError(null);
-    } catch (error: any) {
-      console.error('Error registering:', error.response ? error.response.data : error.message);
+    } catch (error) {
+      const axiosError = error as AxiosError;
+      console.error('Error registering:', axiosError.response ? axiosError.response.data : axiosError.message);
       setError('Registration failed. Please try again.');
     }
   };
 
   const handleLogin = async (username: string, password: string) => {
     try {
-      const response = await axios.post('http://localhost:3000/login', {
+      const response = await axios.post<{ user_id: string; username: string; token: string }>('http://localhost:3000/login', {
         username,
         password
       });
@@ -123,8 +125,9 @@ const App: React.FC = () => {
       localStorage.setItem('token', response.data.token);
       await fetchAssignments(response.data.user_id.toString(), response.data.token);
       setError(null);
-    } catch (error: any) {
-      console.error('Error logging in:', error.response ? error.response.data : error.message);
+    } catch (error) {
+      const axiosError = error as AxiosError;
+      console.error('Error logging in:', axiosError.response ? axiosError.response.data : axiosError.message);
       setError('Login failed. Please try again.');
     }
   };
