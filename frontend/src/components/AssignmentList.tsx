@@ -1,5 +1,5 @@
 import React from 'react';
-import { Assignment } from '../types';
+// import { Assignment } from '../types';
 
 interface AssignmentListProps {
   assignments: Assignment[];

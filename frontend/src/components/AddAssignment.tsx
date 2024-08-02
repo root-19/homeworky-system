@@ -1,9 +1,16 @@
 // AddAssignment.tsx
 import React, { useState } from 'react';
-import { Assignment } from '../types'; // Correct import from types.ts
+// import { Assignments } from '../types';
+
+interface Assignments {
+   title: string;
+  description: string;
+  due_date: string;
+  completed: boolean;
+}
 
 interface AddAssignmentProps {
-  addAssignment: (assignment: Assignment) => void;
+  addAssignment: (assignment: Assignments) => void;
 }
 
 const AddAssignment: React.FC<AddAssignmentProps> = ({ addAssignment }) => {
