@@ -1,9 +1,9 @@
-// AddAssignment.tsx
 import React, { useState } from 'react';
-// import { Assignments } from '../types';
+import { v4 as uuidv4 } from 'uuid';
 
 interface Assignments {
-   title: string;
+  id: string;
+  title: string;
   description: string;
   due_date: string;
   completed: boolean;
@@ -20,7 +20,8 @@ const AddAssignment: React.FC<AddAssignmentProps> = ({ addAssignment }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    addAssignment({ title, description, due_date: dueDate, completed: false });
+    const id = uuidv4(); // Generate unique ID
+    addAssignment({ id, title, description, due_date: dueDate, completed: false });
     setTitle('');
     setDescription('');
     setDueDate('');

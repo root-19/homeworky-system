@@ -15,4 +15,4 @@ export type Assignment = {
 // export interface ChatProps {
 //   user: User | null; // Allowing user to be null initially
 // }
-export type Assignments = Assignment[];
+export type Assignments = Omit<Assignment, 'id'>; 
